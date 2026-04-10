@@ -54,4 +54,5 @@ dependencies {
     debugImplementation libs.androidx.compose.ui.tooling
     debugImplementation libs.androidx.compose.ui.test.manifest
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 }

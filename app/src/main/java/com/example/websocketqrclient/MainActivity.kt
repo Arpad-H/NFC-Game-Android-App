@@ -1,6 +1,5 @@
 package com.example.websocketqrclient
 
-import androidx.appcompat.app.AppCompatActivity
 import android.net.Uri
 import android.nfc.NfcAdapter
 import android.nfc.Tag
@@ -9,6 +8,9 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import okhttp3.*
 import okio.ByteString
 import java.nio.charset.Charset
@@ -18,60 +20,81 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private val TAG = "WebSocketClient"
     private var webSocket: WebSocket? = null
     private lateinit var textView: TextView
-    private lateinit var sendButton: Button
-
-    // Add NFC Adapter
+    private lateinit var scanButton: Button
     private var nfcAdapter: NfcAdapter? = null
+
+    // --- QR Scanner Result Handler ---
+    private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents == null) {
+            textView.text = "Scan cancelled"
+        } else {
+            // This handles the string scanned from inside the app
+            try {
+                val uri = Uri.parse(result.contents)
+                processUri(uri)
+            } catch (e: Exception) {
+                textView.text = "Error parsing QR: ${e.message}"
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         textView = findViewById(R.id.textView)
-        sendButton = findViewById(R.id.sendButton)
+        scanButton = findViewById(R.id.sendButton) // Using your existing button ID
 
         // Initialize NFC
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
             textView.text = "NFC is not supported on this device."
-            Log.e(TAG, "NFC not supported")
         }
 
-        // Handle QR URI
+        // 1. Handle Deep Link (When app is opened from System Camera)
         intent?.data?.let { uri ->
-            val wsUrl = uri.getQueryParameter("ws")
-            if (wsUrl.isNullOrEmpty()) {
-                textView.text = "Invalid QR code!"
-                Log.e(TAG, "No ws parameter in URI!")
-                return@let
-            }
+            processUri(uri)
+        }
 
+        // 2. Handle Manual Scan (When user clicks button inside app)
+        scanButton.setOnClickListener {
+            startQrScanner()
+        }
+    }
+
+    private fun startQrScanner() {
+        val options = ScanOptions()
+        options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+        options.setPrompt("Align QR Code within the frame")
+        options.setBeepEnabled(true)
+        options.setOrientationLocked(false)
+        barcodeLauncher.launch(options)
+    }
+
+    private fun processUri(uri: Uri) {
+        val wsUrl = uri.getQueryParameter("ws")
+        if (!wsUrl.isNullOrEmpty()) {
             textView.text = "Connecting to: $wsUrl"
             Log.d(TAG, "Connecting to: $wsUrl")
             connectWebSocket(wsUrl)
-        }
-
-        // Send button click
-        sendButton.setOnClickListener {
-            sendTestData()
+        } else {
+            textView.text = "Invalid QR code format."
+            Log.e(TAG, "No ws parameter in URI: $uri")
         }
     }
 
     // --- NFC Lifecycle Methods ---
     override fun onResume() {
         super.onResume()
-        // Enable NFC Reader mode while activity is in the foreground
         val flags = NfcAdapter.FLAG_READER_NFC_A or
                 NfcAdapter.FLAG_READER_NFC_B or
                 NfcAdapter.FLAG_READER_NFC_F or
                 NfcAdapter.FLAG_READER_NFC_V
-
         nfcAdapter?.enableReaderMode(this, this, flags, null)
     }
 
     override fun onPause() {
         super.onPause()
-        // Disable NFC Reader mode when activity goes to background
         nfcAdapter?.disableReaderMode(this)
     }
 
@@ -81,28 +104,27 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
         Log.d(TAG, "NFC Tag Discovered!")
 
-        // Strategy 1: Try to read NDEF text payload (if you wrote text to the tags)
         var cardData = readNdefMessage(tag)
 
-        // Strategy 2: If no text is found, grab the unique hardware ID (UID) of the tag
         if (cardData == null) {
             val tagIdBytes = tag.id
             cardData = "UID:" + tagIdBytes.joinToString("") { "%02x".format(it) }
         }
 
         // Send the data over the websocket
-        webSocket?.send(cardData)
-        Log.d(TAG, "Sent NFC data: $cardData")
+        val success = webSocket?.send(cardData) ?: false
 
-        // Update UI (ReaderCallback runs on a background thread!)
         runOnUiThread {
-            textView.text = "Scanned: $cardData"
+            if (success) {
+                textView.text = "Sent to Unity: $cardData"
+            } else {
+                textView.text = "Failed to send. Is WebSocket connected?"
+            }
         }
     }
 
     private fun readNdefMessage(tag: Tag): String? {
         val ndef = Ndef.get(tag) ?: return null
-
         try {
             ndef.connect()
             val ndefMessage = ndef.ndefMessage ?: return null
@@ -110,8 +132,6 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
             if (records.isNotEmpty()) {
                 val payload = records[0].payload
-
-                // Decode standard NDEF Text Record
                 val textEncoding = if ((payload[0].toInt() and 128) == 0) "UTF-8" else "UTF-16"
                 val languageCodeLength = payload[0].toInt() and 51
                 return String(
@@ -131,50 +151,36 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
     // --- WebSocket Methods ---
     private fun connectWebSocket(wsUrl: String) {
-        val client = OkHttpClient()
+        // Close existing connection if any
+        webSocket?.close(1000, "Opening new connection")
 
-        val request = Request.Builder()
-            .url(wsUrl)
-            .build()
+        val client = OkHttpClient()
+        val request = Request.Builder().url(wsUrl).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
-
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 runOnUiThread {
                     textView.text = "Connected! Ready to scan cards."
+                    scanButton.text = "Scan Again" // Change button text once connected
                 }
-                Log.d(TAG, "Connected to Unity WebSocket")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 runOnUiThread {
-                    textView.text = "Received: $text"
+                    textView.text = "Unity says: $text"
                 }
-                Log.d(TAG, "Received: $text")
-            }
-
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                Log.d(TAG, "Received bytes: $bytes")
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 webSocket.close(1000, null)
-                Log.d(TAG, "Closing: $code / $reason")
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 runOnUiThread {
                     textView.text = "Connection failed: ${t.message}"
                 }
-                t.printStackTrace()
             }
         })
-    }
-
-    private fun sendTestData() {
-        val msg = "Test message from Android"
-        webSocket?.send(msg)
-        Log.d(TAG, "Test message sent")
     }
 
     override fun onDestroy() {
