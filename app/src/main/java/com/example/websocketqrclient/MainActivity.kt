@@ -1,5 +1,6 @@
 package com.example.websocketqrclient
 
+import android.content.Intent
 import android.net.Uri
 import android.nfc.NfcAdapter
 import android.nfc.Tag
@@ -9,8 +10,9 @@ import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.barcode.common.Barcode
 import okhttp3.*
 import okio.ByteString
 import java.nio.charset.Charset
@@ -23,27 +25,13 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private lateinit var scanButton: Button
     private var nfcAdapter: NfcAdapter? = null
 
-    // --- QR Scanner Result Handler ---
-    private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
-        if (result.contents == null) {
-            textView.text = "Scan cancelled"
-        } else {
-            // This handles the string scanned from inside the app
-            try {
-                val uri = Uri.parse(result.contents)
-                processUri(uri)
-            } catch (e: Exception) {
-                textView.text = "Error parsing QR: ${e.message}"
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         textView = findViewById(R.id.textView)
-        scanButton = findViewById(R.id.sendButton) // Using your existing button ID
+        scanButton = findViewById(R.id.sendButton)
 
         // Initialize NFC
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
@@ -51,9 +39,11 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             textView.text = "NFC is not supported on this device."
         }
 
-        // 1. Handle Deep Link (When app is opened from System Camera)
-        intent?.data?.let { uri ->
-            processUri(uri)
+        // Only process the intent if it hasn't been handled yet
+        if (savedInstanceState == null) {
+            intent?.data?.let { uri ->
+                processUri(uri)
+            }
         }
 
         // 2. Handle Manual Scan (When user clicks button inside app)
@@ -63,26 +53,69 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     }
 
     private fun startQrScanner() {
-        val options = ScanOptions()
-        options.setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-        options.setPrompt("Align QR Code within the frame")
-        options.setBeepEnabled(true)
-        options.setOrientationLocked(false)
-        barcodeLauncher.launch(options)
+        // Configure the scanner to only look for QR codes (makes it even faster)
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .build()
+
+        // Get the scanner client
+        val scanner = GmsBarcodeScanning.getClient(this, options)
+
+        // Launch the scanner
+        scanner.startScan()
+            .addOnSuccessListener { barcode ->
+                // This triggers when a QR code is successfully scanned
+                val rawValue = barcode.rawValue
+                if (rawValue != null) {
+                    try {
+                        val uri = Uri.parse(rawValue)
+                        processUri(uri)
+                    } catch (e: Exception) {
+                        textView.text = "Error parsing QR: ${e.message}"
+                    }
+                }
+            }
+            .addOnCanceledListener {
+                // This triggers if the user backs out without scanning
+                textView.text = "Scan cancelled"
+            }
+            .addOnFailureListener { e ->
+                // This triggers if something goes wrong
+                textView.text = "Error scanning: ${e.message}"
+                Log.e(TAG, "Barcode scanning failed", e)
+            }
     }
 
     private fun processUri(uri: Uri) {
         val wsUrl = uri.getQueryParameter("ws")
         if (!wsUrl.isNullOrEmpty()) {
-            textView.text = "Connecting to: $wsUrl"
-            Log.d(TAG, "Connecting to: $wsUrl")
+            // Log to see if this is being called multiple times unexpectedly
+            Log.d(TAG, "Processing URI: $wsUrl")
+
+            // Update UI on the main thread
+            runOnUiThread {
+                textView.text = "Connecting to: $wsUrl"
+            }
+
             connectWebSocket(wsUrl)
         } else {
-            textView.text = "Invalid QR code format."
-            Log.e(TAG, "No ws parameter in URI: $uri")
+            runOnUiThread {
+                textView.text = "Invalid QR code format."
+            }
         }
     }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
 
+        // Update the Activity's current intent so intent?.data still works later if needed
+        setIntent(intent)
+
+        // Handle the new deep link
+        intent?.data?.let { uri ->
+            Log.d(TAG, "Received new deep link: $uri")
+            processUri(uri)
+        }
+    }
     // --- NFC Lifecycle Methods ---
     override fun onResume() {
         super.onResume()
