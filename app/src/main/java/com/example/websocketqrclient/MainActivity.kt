@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         // Check if websocket is connected
         if (webSocket != null) {
             // Create a comma-separated string of the elements
-            val message = "ELEMENTS:${selectedElements.joinToString(",")}"
+            val message = "SELECT_ELEMENTS:${selectedElements.joinToString(",")}"
 
             // Send it!
             val success = webSocket?.send(message) ?: false
