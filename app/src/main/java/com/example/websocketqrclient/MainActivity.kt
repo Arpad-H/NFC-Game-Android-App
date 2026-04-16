@@ -8,6 +8,7 @@ import android.nfc.tech.Ndef
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -16,6 +17,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import okhttp3.*
 import okio.ByteString
 import java.nio.charset.Charset
+import android.widget.Toast
 
 class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
@@ -25,6 +27,12 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private lateinit var scanButton: Button
     private var nfcAdapter: NfcAdapter? = null
 
+    // --- Select Element Methods ---
+    val selectedElements = mutableListOf<String>()
+    val maxSelection = 3
+    private lateinit var grid: GridLayout
+    private lateinit var statusText: TextView
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,6 +40,8 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
         textView = findViewById(R.id.textView)
         scanButton = findViewById(R.id.sendButton)
+        grid = findViewById(R.id.elementGrid)
+        statusText = findViewById(R.id.selectedElementsText)
 
         // Initialize NFC
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
@@ -50,8 +60,66 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         scanButton.setOnClickListener {
             startQrScanner()
         }
+
+        setupElementGrid()
+    }
+    private fun setupElementGrid() {
+        val grid = findViewById<GridLayout>(R.id.elementGrid)
+        val statusText = findViewById<TextView>(R.id.selectedElementsText)
+
+        // Loop through all children inside the GridLayout
+        for (i in 0 until grid.childCount) {
+            val child = grid.getChildAt(i)
+
+            // Check if the child is a Button before casting
+            if (child is Button) {
+                child.setOnClickListener {
+                    handleElementClick(child, statusText)
+                }
+            }
+        }
     }
 
+    private fun handleElementClick(button: Button, statusText: TextView) {
+        val element = button.text.toString()
+
+        if (button.isActivated) {
+            // Deselect: If it was green, make it grey
+            button.isActivated = false
+            selectedElements.remove(element)
+        } else {
+            // Select: If under limit, make it green
+            if (selectedElements.size < maxSelection) {
+                button.isActivated = true
+                selectedElements.add(element)
+            } else {
+                // Feedback when they try to select a 4th item
+                Toast.makeText(this, "Maximum 3 elements allowed", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Update the display text box
+        if (selectedElements.isEmpty()) {
+            statusText.text = "Selected: None"
+        } else {
+            statusText.text = "Selected: ${selectedElements.joinToString(", ")}"
+        }
+        sendElementsToUnity()
+    }
+    private fun sendElementsToUnity() {
+        // Check if websocket is connected
+        if (webSocket != null) {
+            // Create a comma-separated string of the elements
+            val message = "ELEMENTS:${selectedElements.joinToString(",")}"
+
+            // Send it!
+            val success = webSocket?.send(message) ?: false
+
+            if (!success) {
+                Log.e(TAG, "Failed to send elements. Socket might be closed.")
+            }
+        }
+    }
     private fun startQrScanner() {
         // Configure the scanner to only look for QR codes (makes it even faster)
         val options = GmsBarcodeScannerOptions.Builder()
@@ -215,6 +283,9 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             }
         })
     }
+
+
+
 
     override fun onDestroy() {
         super.onDestroy()

@@ -21,4 +21,95 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Scan Code Again" />
+    To achieve this, you’ll need to update your XML layout with a TextView for the selection status and a GridLayout for the 3x3 element grid. You will also need a selector drawable to handle the border color change logic and some Kotlin/Java code to enforce the "max 3" rule.
+    1. The Updated XML Layout
+
+    Add these elements below your existing Button. Note the use of GridLayout for the 3x3 structure.
+    XML
+
+    <TextView
+        android:id="@+id/selectedElementsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Selected: None"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <GridLayout
+        android:id="@+id/elementGrid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:columnCount="3"
+        android:rowCount="3"
+        android:alignmentMode="alignMargins"
+        android:columnOrderPreserved="false">
+
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Fire"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Wind"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Death"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Life"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Gravity"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Gravity"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Darkness"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Light"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:text="Spirit"
+            android:background="@drawable/element_button_selector"
+            android:layout_margin="4dp" />
+
+
+    </GridLayout>
 </LinearLayout>
