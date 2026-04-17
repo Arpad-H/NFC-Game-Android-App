@@ -1,5 +1,6 @@
 package com.example.websocketqrclient
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.nfc.NfcAdapter
@@ -8,6 +9,7 @@ import android.nfc.tech.Ndef
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.EditText
 import android.widget.GridLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -18,9 +20,13 @@ import okhttp3.*
 import okio.ByteString
 import java.nio.charset.Charset
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.edit
 
 class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
-
+    private val PREFS_NAME = "UserPrefs"
+    private val KEY_USERNAME = "username"
+    private var username: String? = null
     private val TAG = "WebSocketClient"
     private var webSocket: WebSocket? = null
     private lateinit var textView: TextView
@@ -32,7 +38,7 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     val maxSelection = 3
     private lateinit var grid: GridLayout
     private lateinit var statusText: TextView
-
+    private lateinit var displayNameText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,7 +48,8 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         scanButton = findViewById(R.id.sendButton)
         grid = findViewById(R.id.elementGrid)
         statusText = findViewById(R.id.selectedElementsText)
-
+        displayNameText = findViewById(R.id.displayNameText)
+        val editButton = findViewById<Button>(R.id.editNameButton)
         // Initialize NFC
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
@@ -62,6 +69,15 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         }
 
         setupElementGrid()
+
+        val sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedName = sharedPreferences.getString(KEY_USERNAME, "Guest")
+        displayNameText.text = "User: $savedName"
+
+        // 2. Show Popup on click
+        editButton.setOnClickListener {
+            showEditNameDialog()
+        }
     }
     private fun setupElementGrid() {
         val grid = findViewById<GridLayout>(R.id.elementGrid)
@@ -79,7 +95,43 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             }
         }
     }
+    private fun showEditNameDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Enter Username")
 
+        // Create the input field for the popup
+        val input = EditText(this)
+        input.hint = "Name"
+
+        // Pre-fill with current name (removing the "User: " prefix)
+        val currentName = displayNameText.text.toString().replace("User: ", "")
+        input.setText(currentName)
+
+        builder.setView(input)
+
+        // Confirm Button
+        builder.setPositiveButton("Confirm") { _, _ ->
+            val newName = input.text.toString()
+            saveName(newName)
+        }
+
+        // Cancel Button
+        builder.setNegativeButton("Cancel") { dialog, _ ->
+            dialog.cancel()
+        }
+
+        builder.show()
+    }
+    private fun saveName(name: String) {
+        // Update UI
+        displayNameText.text = "User: $name"
+
+        // Save to SharedPreferences
+        val sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putString(KEY_USERNAME, name)
+        editor.apply()
+    }
     private fun handleElementClick(button: Button, statusText: TextView) {
         val element = button.text.toString()
 

@@ -3,29 +3,54 @@
     android:orientation="vertical"
     android:padding="24dp"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
 
     <Space
         android:layout_width="match_parent"
-        android:layout_height="143dp" />
+        android:layout_height="48dp" />
 
-    <TextView
-        android:id="@+id/textView"
-        android:text="Waiting for QR..."
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
-
-    <Button
-        android:id="@+id/sendButton"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Scan Code Again" />
-    To achieve this, you’ll need to update your XML layout with a TextView for the selection status and a GridLayout for the 3x3 element grid. You will also need a selector drawable to handle the border color change logic and some Kotlin/Java code to enforce the "max 3" rule.
-    1. The Updated XML Layout
+        android:orientation="horizontal">
 
-    Add these elements below your existing Button. Note the use of GridLayout for the 3x3 structure.
-    XML
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Scan Code Again" />
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Waiting for QR..." />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/displayNameText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="User: Guest"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/editNameButton"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Edit" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/selectedElementsText"
